@@ -17,6 +17,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run type-check
+      - run: npm test
       - run: npm run build
 
   # Build and push a throwaway GHCR image for every PR so the branch can be
