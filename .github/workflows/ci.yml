@@ -13,10 +13,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22: the test script passes a glob ('src/**/*.test.ts') to
+          # `node --test`, and glob support in the test runner only landed in
+          # Node 21. On Node 20 the pattern is treated as a literal path and
+          # the run dies with "Could not find .../src/**/*.test.ts".
+          # This is a dev-time constraint only — `engines` stays >=18 because
+          # installing the package runs `prepare` (tsc build), never the tests.
+          node-version: 22
           cache: npm
 
       - run: npm ci
+      - run: npm run type-check
+      - run: npm test
       - run: npm run build
 
   # Build and push a throwaway GHCR image for every PR so the branch can be
