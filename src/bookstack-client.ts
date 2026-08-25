@@ -649,6 +649,18 @@ export class BookStackClient {
     return this.enhanceBookResponse(response.data);
   }
 
+  async updateBook(id: number, data: {
+    name?: string;
+    description?: string;
+    tags?: Tag[];
+  }): Promise<any> {
+    if (!this.enableWrite) {
+      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
+    }
+    const response = await this.client.put(`/books/${id}`, data);
+    return this.enhanceBookResponse(response.data);
+  }
+
   async createChapter(data: {
     book_id: number;
     name: string;
@@ -662,12 +674,25 @@ export class BookStackClient {
     return await this.enhanceChapterResponse(response.data);
   }
 
+  async updateChapter(id: number, data: {
+    name?: string;
+    description?: string;
+    tags?: Tag[];
+  }): Promise<any> {
+    if (!this.enableWrite) {
+      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
+    }
+    const response = await this.client.put(`/chapters/${id}`, data);
+    return await this.enhanceChapterResponse(response.data);
+  }
+
   async createPage(data: {
     name: string;
     html?: string;
     markdown?: string;
     book_id: number;
     chapter_id?: number;
+    tags?: Tag[];
   }): Promise<any> {
     if (!this.enableWrite) {
       throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
@@ -706,6 +731,7 @@ export class BookStackClient {
     markdown?: string;
     book_id?: number;
     chapter_id?: number;
+    tags?: Tag[];
   }): Promise<any> {
     if (!this.enableWrite) {
       throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');

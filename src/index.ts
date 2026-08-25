@@ -645,6 +645,32 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     );
 
     writeTool(
+      "update_book",
+      {
+        description: "Update an existing book",
+        inputSchema: {
+          id: z.coerce.number().min(1),
+          name: z.string().optional().describe("Optional: New book name"),
+          description: z.string().optional().describe("Optional: New book description"),
+          tags: z.array(z.object({
+            name: z.string(),
+            value: z.string()
+          }).strict()).optional().describe("Tags for the book")
+        }
+      },
+      async (args) => {
+        const book = await client.updateBook(args.id, {
+          name: args.name,
+          description: args.description,
+          tags: args.tags as any
+        });
+        return {
+          content: [{ type: "text", text: JSON.stringify(book) }]
+        };
+      }
+    );
+
+    writeTool(
       "create_chapter",
       {
         description: "Create a new chapter within a book",
@@ -672,6 +698,32 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     );
 
     writeTool(
+      "update_chapter",
+      {
+        description: "Update an existing chapter",
+        inputSchema: {
+          id: z.coerce.number().min(1),
+          name: z.string().optional().describe("Optional: New chapter name"),
+          description: z.string().optional().describe("Optional: New chapter description"),
+          tags: z.array(z.object({
+            name: z.string(),
+            value: z.string()
+          }).strict()).optional().describe("Tags for the chapter")
+        }
+      },
+      async (args) => {
+        const chapter = await client.updateChapter(args.id, {
+          name: args.name,
+          description: args.description,
+          tags: args.tags as any
+        });
+        return {
+          content: [{ type: "text", text: JSON.stringify(chapter) }]
+        };
+      }
+    );
+
+    writeTool(
       "create_page",
       {
         description: "Create a new page in BookStack",
@@ -680,7 +732,11 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
           book_id: z.coerce.number().min(1).describe("Book ID where the page will be created"),
           chapter_id: z.coerce.number().optional().describe("Optional: Chapter ID if page should be in a chapter"),
           html: z.string().optional().describe("Optional: HTML content"),
-          markdown: z.string().optional().describe("Optional: Markdown content")
+          markdown: z.string().optional().describe("Optional: Markdown content"),
+          tags: z.array(z.object({
+            name: z.string(),
+            value: z.string()
+          }).strict()).optional().describe("Tags for the page")
         }
       },
       async (args) => {
@@ -689,7 +745,8 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
           book_id: args.book_id,
           chapter_id: args.chapter_id,
           html: args.html,
-          markdown: args.markdown
+          markdown: args.markdown,
+          tags: args.tags as any
         });
         return {
           content: [{ type: "text", text: JSON.stringify(page) }]
@@ -707,7 +764,11 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
           html: z.string().optional().describe("Optional: New HTML content"),
           markdown: z.string().optional().describe("Optional: New Markdown content"),
           book_id: z.coerce.number().min(1).optional().describe("Optional: Move page to this book"),
-          chapter_id: z.coerce.number().optional().describe("Optional: Move page into this chapter (must belong to the target book; pass 0 to move out of any chapter)")
+          chapter_id: z.coerce.number().optional().describe("Optional: Move page into this chapter (must belong to the target book; pass 0 to move out of any chapter)"),
+          tags: z.array(z.object({
+            name: z.string(),
+            value: z.string()
+          }).strict()).optional().describe("Tags for the page")
         }
       },
       async (args) => {
@@ -716,7 +777,8 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
           html: args.html,
           markdown: args.markdown,
           book_id: args.book_id,
-          chapter_id: args.chapter_id
+          chapter_id: args.chapter_id,
+          tags: args.tags as any
         });
         return {
           content: [{ type: "text", text: JSON.stringify(page) }]
