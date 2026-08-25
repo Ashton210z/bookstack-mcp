@@ -677,6 +677,8 @@ export class BookStackClient {
   async updateChapter(id: number, data: {
     name?: string;
     description?: string;
+    book_id?: number;
+    priority?: number;
     tags?: Tag[];
   }): Promise<any> {
     if (!this.enableWrite) {

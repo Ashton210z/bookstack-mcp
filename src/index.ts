@@ -700,11 +700,13 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     writeTool(
       "update_chapter",
       {
-        description: "Update an existing chapter",
+        description: "Update an existing chapter. Pass book_id to move the chapter to a different book, or priority to reorder it within its book.",
         inputSchema: {
           id: z.coerce.number().min(1),
           name: z.string().optional().describe("Optional: New chapter name"),
           description: z.string().optional().describe("Optional: New chapter description"),
+          book_id: z.coerce.number().min(1).optional().describe("Optional: Move chapter to this book"),
+          priority: z.coerce.number().int().min(0).optional().describe("Optional: Reorder chapter within its book (non-negative integer, lower sorts first)"),
           tags: z.array(z.object({
             name: z.string(),
             value: z.string()
@@ -715,6 +717,8 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
         const chapter = await client.updateChapter(args.id, {
           name: args.name,
           description: args.description,
+          book_id: args.book_id,
+          priority: args.priority,
           tags: args.tags as any
         });
         return {
