@@ -17,7 +17,7 @@ npx bookstack-mcp
 
 ## Features
 
-- 20 read-only tools + 18 write tools for complete BookStack API coverage
+- 20 read-only tools + 20 write tools for complete BookStack API coverage
 - Books, chapters, pages, shelves, attachments, and comments — full CRUD
 - Recycle bin support — restore or permanently delete soft-deleted content
 - Type-safe input validation with Zod (auto-coerces string/number params for broad client compatibility)
@@ -242,7 +242,7 @@ Both templates support `id` autocompletion: as you type, the server searches Boo
 | `get_shelves` / `get_shelf` | List or get shelf details |
 | `get_attachments` / `get_attachment` | List or get attachment details |
 | `get_comments` / `get_comment` | List or get page comments (BookStack v25.11+) |
-| `find_users` | Look up BookStack users by name, email, or slug to resolve numeric user IDs for search filters |
+| `find_users` | Look up BookStack users by name, email, or slug to resolve user slugs for `{created_by:X}`-style search filters |
 | `get_recycle_bin` | List items in the recycle bin |
 | `export_page` | Export page as HTML, PDF, Markdown, plaintext, or ZIP |
 | `export_book` | Export entire book |
@@ -253,8 +253,8 @@ Both templates support `id` autocompletion: as you type, the server searches Boo
 
 | Tool | Description |
 |------|-------------|
-| `create_book` / `delete_book` | Create or delete a book |
-| `create_chapter` / `delete_chapter` | Create or delete a chapter |
+| `create_book` / `update_book` / `delete_book` | Create, update, or delete a book |
+| `create_chapter` / `update_chapter` / `delete_chapter` | Create, update (including moving to a different book or reordering), or delete a chapter |
 | `create_page` | Create a new page (HTML or Markdown) |
 | `update_page` | Update content, rename, or move to a different book/chapter |
 | `delete_page` | Delete a page (recoverable from recycle bin) |
@@ -270,6 +270,12 @@ Both templates support `id` autocompletion: as you type, the server searches Boo
 3. Ensure the user has **Access System API** permission
 4. In the **API Tokens** section, create a new token
 5. Copy the Token ID and Token Secret
+
+> **Also grant the role “Export Content”** if you read pages written in the
+> WYSIWYG editor. BookStack returns an empty `markdown` body for those pages, and
+> `get_page` recovers it from the server-side HTML→markdown export endpoint. Without
+> the permission that fallback fails and the page reads as empty. The default Viewer
+> role does not include it.
 
 ## Security
 
