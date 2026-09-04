@@ -728,53 +728,6 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     );
 
     writeTool(
-      "upload_image",
-      {
-        description:
-          "Upload an image to the page-content image gallery and return its URL plus ready-to-paste markdown/HTML. " +
-          "The image is sent as base64 — the server has no access to the caller's filesystem, so a file path will not work. " +
-          "BookStack accepts jpg, png, gif, webp and avif only; SVG must be rasterised to PNG first.",
-        inputSchema: {
-          uploaded_to: z.coerce.number().min(1).describe("ID of an existing page the image belongs to"),
-          image_base64: z.string().describe("Raw base64 of the image bytes, with no 'data:image/...;base64,' prefix"),
-          name: z.string().max(180).describe("Image name; the file extension is added automatically to match the actual format"),
-          type: z.enum(["gallery", "drawio"]).optional()
-            .describe("Optional: 'gallery' (default) for page content; 'drawio' only for a PNG with diagrams.net data embedded")
-        }
-      },
-      async (args) => {
-        const image = await client.uploadImage({
-          uploaded_to: args.uploaded_to,
-          image_base64: args.image_base64,
-          name: args.name,
-          type: args.type
-        });
-        return {
-          content: [{ type: "text", text: JSON.stringify(image) }]
-        };
-      }
-    );
-
-    writeTool(
-      "delete_image",
-      {
-        description:
-          "Delete an image from the image gallery. The gallery record goes immediately, but BookStack may keep serving " +
-          "the underlying file at its direct URL, so this is not a way to make image data unreachable. " +
-          "Pages still embedding it will eventually show a broken image.",
-        inputSchema: {
-          id: z.coerce.number().min(1).describe("Image ID")
-        }
-      },
-      async (args) => {
-        await client.deleteImage(args.id);
-        return {
-          content: [{ type: "text", text: JSON.stringify({ deleted: true, id: args.id }) }]
-        };
-      }
-    );
-
-    writeTool(
       "create_page",
       {
         description: "Create a new page in BookStack",

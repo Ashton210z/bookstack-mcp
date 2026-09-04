@@ -2,12 +2,6 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosAdap
 import https from 'https';
 import { Semaphore } from './util/semaphore.js';
 import { countWords } from './util/word-count.js';
-import {
-  detectImageType,
-  detectRejectedFormat,
-  filenameFor,
-  supportedExtensions,
-} from './util/image-type.js';
 
 const MAX_RETRIES_429 = 5;
 
@@ -1057,94 +1051,6 @@ export class BookStackClient {
       throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
     }
     const response = await this.client.delete(`/attachments/${id}`);
-    return response.data;
-  }
-
-  /**
-   * POST a multipart/form-data body.
-   *
-   * The shared axios instance sets a default `Content-Type: application/json`,
-   * which would be sent verbatim and make BookStack reject the body. Passing
-   * the header as undefined lets axios serialise the FormData and set
-   * `multipart/form-data` with the correct boundary itself.
-   */
-  private async postMultipart(path: string, form: FormData): Promise<any> {
-    const response = await this.client.post(path, form, {
-      headers: { 'Content-Type': undefined },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    });
-    return response.data;
-  }
-
-  // Image gallery
-  async uploadImage(data: {
-    uploaded_to: number;
-    image_base64: string;
-    name: string;
-    type?: 'gallery' | 'drawio';
-  }): Promise<any> {
-    if (!this.enableWrite) {
-      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
-    }
-
-    const name = data.name.trim();
-    if (!name) {
-      throw new Error('name is required — base64 input carries no filename for BookStack to fall back to.');
-    }
-    if (name.length > 180) {
-      throw new Error(`name is ${name.length} characters; BookStack allows at most 180.`);
-    }
-
-    // Reject obvious non-base64 early: a data: URL is the common mistake, and
-    // Buffer.from would silently decode it to garbage rather than throwing.
-    const payload = data.image_base64.trim();
-    if (payload.startsWith('data:')) {
-      throw new Error(
-        'image_base64 looks like a data: URL. Pass only the base64 payload, without the "data:image/png;base64," prefix.'
-      );
-    }
-    const buf = Buffer.from(payload, 'base64');
-    if (buf.length === 0) {
-      throw new Error('image_base64 decoded to zero bytes — check the value is valid base64.');
-    }
-
-    const detected = detectImageType(buf);
-    if (!detected) {
-      const rejected = detectRejectedFormat(buf);
-      throw new Error(
-        rejected === 'SVG'
-          ? `The image is an SVG, which BookStack's gallery does not accept (allowed: ${supportedExtensions()}). ` +
-            `Rasterise it to PNG first.`
-          : rejected
-            ? `The image is a ${rejected} file, which BookStack's gallery does not accept (allowed: ${supportedExtensions()}).`
-            : `Could not recognise the image format from its content (allowed: ${supportedExtensions()}).`
-      );
-    }
-
-    const form = new FormData();
-    form.append('type', data.type ?? 'gallery');
-    form.append('uploaded_to', String(data.uploaded_to));
-    form.append('name', name);
-    form.append(
-      'image',
-      new Blob([buf], { type: detected.mime }),
-      filenameFor(name, detected)
-    );
-
-    return await this.postMultipart('/image-gallery', form);
-  }
-
-  /**
-   * Removes the gallery record. Note that BookStack may go on serving the
-   * underlying file from its direct URL afterwards, so this is not a way to
-   * make the image data unreachable.
-   */
-  async deleteImage(id: number): Promise<any> {
-    if (!this.enableWrite) {
-      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
-    }
-    const response = await this.client.delete(`/image-gallery/${id}`);
     return response.data;
   }
 
