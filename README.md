@@ -257,6 +257,7 @@ Both templates support `id` autocompletion: as you type, the server searches Boo
 | `create_chapter` / `update_chapter` / `delete_chapter` | Create, update (including moving to a different book or reordering), or delete a chapter |
 | `create_page` | Create a new page (HTML or Markdown) |
 | `update_page` | Update content, rename, or move to a different book/chapter |
+| `edit_page` | Exact find-and-replace on a page's stored HTML/Markdown — changes part of a page without resending the whole body; nothing is written unless every edit matches exactly once |
 | `delete_page` | Delete a page (recoverable from recycle bin) |
 | `create_shelf` / `update_shelf` / `delete_shelf` | Manage shelves |
 | `create_attachment` / `update_attachment` / `delete_attachment` | Manage attachments |

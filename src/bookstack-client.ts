@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosAdap
 import https from 'https';
 import { Semaphore } from './util/semaphore.js';
 import { countWords } from './util/word-count.js';
+import { applyEdits, PageEdit } from './util/apply-edits.js';
 
 const MAX_RETRIES_429 = 5;
 
@@ -745,6 +746,45 @@ export class BookStackClient {
     }
     const response = await this.client.put(`/pages/${id}`, data);
     return await this.enhancePageResponse(response.data);
+  }
+
+  // Find-and-replace against the page's stored source, written back in the
+  // same format. A page with stored markdown is markdown-sourced and its html
+  // is rendered from it, so editing the html would discard the markdown.
+  // Decide by the stored markdown, not page.editor: pages created through the
+  // API with markdown still report editor "wysiwyg". Name and tags are
+  // omitted from the PUT, so BookStack keeps them.
+  async editPage(id: number, edits: PageEdit[]): Promise<any> {
+    if (!this.enableWrite) {
+      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
+    }
+    const { data: page } = await this.client.get(`/pages/${id}`);
+    const field: 'html' | 'markdown' = page.markdown ? 'markdown' : 'html';
+    const source: string = page[field] || '';
+
+    let updated: string;
+    try {
+      updated = applyEdits(source, edits);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${message}. Nothing was written. Page ${id} is stored as ${field}, so old_text must ` +
+        `match that source exactly — read it with get_page(format="${field}").`
+      );
+    }
+
+    const { data: saved } = await this.client.put(`/pages/${id}`, { [field]: updated });
+    return {
+      id: saved.id,
+      name: saved.name,
+      url: await this.generatePageUrl(saved),
+      editor: saved.editor,
+      source_format: field,
+      edits_applied: edits.length,
+      chars_before: source.length,
+      chars_after: (saved[field] || '').length,
+      revision_count: saved.revision_count
+    };
   }
 
   async exportPage(id: number, format: 'html' | 'pdf' | 'markdown' | 'plaintext' | 'zip'): Promise<any> {

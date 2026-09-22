@@ -791,6 +791,26 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     );
 
     writeTool(
+      "edit_page",
+      {
+        description: "Edit part of a page by exact find-and-replace, without resending the whole body. Prefer this over update_page for changes to existing content. old_text must match the page's stored source exactly once — Markdown for pages authored in Markdown, otherwise HTML (including BookStack's added id=\"bkmrk-…\" anchors). Read it first with get_page(format=\"html\") or get_page(format=\"markdown\"); a mismatch error names which one the page uses. Edits apply in order; if any fails to match, nothing is written. Name and tags are left unchanged.",
+        inputSchema: {
+          id: z.coerce.number().min(1),
+          edits: z.array(z.object({
+            old_text: z.string().min(1).describe("Exact text to replace; must occur exactly once"),
+            new_text: z.string().describe("Replacement text; empty string deletes old_text")
+          }).strict()).min(1)
+        }
+      },
+      async (args) => {
+        const result = await client.editPage(args.id, args.edits as any);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }]
+        };
+      }
+    );
+
+    writeTool(
       "create_shelf",
       {
         description: "Create a new book shelf (collection)",
