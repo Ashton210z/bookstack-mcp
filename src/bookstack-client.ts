@@ -3,8 +3,16 @@ import https from 'https';
 import { Semaphore } from './util/semaphore.js';
 import { countWords } from './util/word-count.js';
 import { applyEdits, PageEdit } from './util/apply-edits.js';
+import {
+  detectImageType,
+  detectRejectedFormat,
+  filenameFor,
+  supportedExtensions,
+} from './util/image-type.js';
 
 const MAX_RETRIES_429 = 5;
+// Upper bound for an image fetched by URL; BookStack's own upload limit is lower by default.
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
 function parseRetryAfter(value: unknown): number | null {
   if (typeof value !== 'string' || !value) return null;
@@ -1092,6 +1100,148 @@ export class BookStackClient {
     }
     const response = await this.client.delete(`/attachments/${id}`);
     return response.data;
+  }
+
+  /**
+   * POST a multipart/form-data body.
+   *
+   * The shared axios instance sets a default `Content-Type: application/json`,
+   * which would be sent verbatim and make BookStack reject the body. Passing
+   * the header as undefined lets axios serialise the FormData and set
+   * `multipart/form-data` with the correct boundary itself.
+   */
+  private async postMultipart(path: string, form: FormData): Promise<any> {
+    const response = await this.client.post(path, form, {
+      headers: { 'Content-Type': undefined },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+    return response.data;
+  }
+
+  // Image gallery
+  //
+  // Image bytes never arrive as a tool argument. A model has to generate
+  // base64 token by token, and long high-entropy strings corrupt silently —
+  // the 5.5.0 base64 tool stored broken PNGs that "succeeded". So the bytes
+  // always come from somewhere the server reads itself: a URL it fetches
+  // (uploadImageFromUrl), or stdin/a file for the CLI (see cli.ts).
+
+  /** Upload raw image bytes to the gallery. The format is sniffed, not trusted. */
+  async uploadImage(data: {
+    uploaded_to: number;
+    bytes: Uint8Array;
+    name: string;
+    type?: 'gallery' | 'drawio';
+  }): Promise<any> {
+    if (!this.enableWrite) {
+      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
+    }
+
+    const name = data.name.trim();
+    if (!name) {
+      throw new Error('name is required.');
+    }
+    if (name.length > 180) {
+      throw new Error(`name is ${name.length} characters; BookStack allows at most 180.`);
+    }
+    if (data.bytes.length === 0) {
+      throw new Error('The image is empty (zero bytes).');
+    }
+
+    const detected = detectImageType(data.bytes);
+    if (!detected) {
+      const rejected = detectRejectedFormat(data.bytes);
+      throw new Error(
+        rejected === 'SVG'
+          ? `The image is an SVG, which BookStack's gallery does not accept (allowed: ${supportedExtensions()}). ` +
+            `Rasterise it to PNG first.`
+          : rejected
+            ? `The image is a ${rejected} file, which BookStack's gallery does not accept (allowed: ${supportedExtensions()}).`
+            : `Could not recognise the image format from its content (allowed: ${supportedExtensions()}).`
+      );
+    }
+
+    const form = new FormData();
+    form.append('type', data.type ?? 'gallery');
+    form.append('uploaded_to', String(data.uploaded_to));
+    form.append('name', name);
+    form.append(
+      'image',
+      new Blob([Uint8Array.from(data.bytes)], { type: detected.mime }),
+      filenameFor(name, detected)
+    );
+
+    return this.withEmbedSnippets(await this.postMultipart('/image-gallery', form));
+  }
+
+  /**
+   * Fetch an image over http(s) and upload it. The server does the fetch, so
+   * the bytes never pass through the caller. `name` defaults to the last path
+   * segment of the URL.
+   */
+  async uploadImageFromUrl(data: {
+    uploaded_to: number;
+    url: string;
+    name?: string;
+    type?: 'gallery' | 'drawio';
+  }): Promise<any> {
+    let parsed: URL;
+    try {
+      parsed = new URL(data.url);
+    } catch {
+      throw new Error(`Not a valid URL: ${data.url}`);
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`Only http and https URLs can be fetched (got ${parsed.protocol}).`);
+    }
+
+    const response = await axios.get(parsed.toString(), {
+      responseType: 'arraybuffer',
+      timeout: 30_000,
+      maxContentLength: MAX_IMAGE_BYTES,
+      maxRedirects: 5,
+      validateStatus: () => true,
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Fetching ${parsed} returned HTTP ${response.status}.`);
+    }
+
+    const lastSegment = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() ?? '');
+    const name = data.name?.trim() || lastSegment.replace(/\.[a-z0-9]+$/i, '') || 'image';
+    return this.uploadImage({
+      uploaded_to: data.uploaded_to,
+      bytes: new Uint8Array(response.data),
+      name,
+      type: data.type,
+    });
+  }
+
+  /**
+   * Removes the gallery record. Note that BookStack may go on serving the
+   * underlying file from its direct URL afterwards, so this is not a way to
+   * make the image data unreachable.
+   */
+  async deleteImage(id: number): Promise<any> {
+    if (!this.enableWrite) {
+      throw new Error('Write operations are disabled. Set BOOKSTACK_ENABLE_WRITE=true to enable.');
+    }
+    const response = await this.client.delete(`/image-gallery/${id}`);
+    return response.data;
+  }
+
+  /** Adds ready-to-paste markdown so the caller doesn't hand-assemble the URL. */
+  private withEmbedSnippets(image: any): any {
+    const url = image?.url;
+    if (typeof url !== 'string') return image;
+    const display = image?.thumbs?.display ?? url;
+    return {
+      id: image.id,
+      name: image.name,
+      uploaded_to: image.uploaded_to,
+      url,
+      markdown: `[![${image.name}](${display})](${url})`,
+    };
   }
 
   // Comments (BookStack v25.11+)

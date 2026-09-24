@@ -261,8 +261,25 @@ Both templates support `id` autocompletion: as you type, the server searches Boo
 | `delete_page` | Delete a page (recoverable from recycle bin) |
 | `create_shelf` / `update_shelf` / `delete_shelf` | Manage shelves |
 | `create_attachment` / `update_attachment` / `delete_attachment` | Manage attachments |
+| `upload_image` | Upload an image to the page gallery **by URL** — the server fetches it, so no image data passes through the tool call. Returns the URL and ready-to-paste markdown |
+| `delete_image` | Remove an image from the gallery (BookStack may keep serving the file at its direct URL) |
 | `create_comment` / `update_comment` / `delete_comment` | Manage page comments (v25.11+) |
 | `restore_deleted` / `permanently_delete` | Restore or permanently destroy items in the recycle bin |
+
+### Uploading a local image (CLI)
+
+Image bytes should never be passed as base64 in a tool argument: a model has to
+generate them token by token, and long base64 corrupts silently. For a file on
+disk, use the `upload-image` subcommand, which reads a file or stdin and uses
+the same `BOOKSTACK_*` environment as the server:
+
+```bash
+bookstack-mcp upload-image --page 12 diagram.png
+# From another machine, reuse a running container's credentials:
+ssh <host> 'docker exec -i bookstack-mcp bookstack-mcp upload-image --page 12 --name diagram' < diagram.png
+```
+
+It prints JSON with the image `url` and a `markdown` snippet to embed.
 
 ## BookStack API Setup
 

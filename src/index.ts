@@ -21,6 +21,7 @@ import {
   OAuthConfig
 } from "./oauth/entra-proxy.js";
 import { SessionRegistry } from "./session-registry.js";
+import { runUploadImageCli } from "./cli.js";
 
 // App-level config: the read-only credential is always present; the write credential and
 // OAuth proxy are optional. In OAuth mode the per-session credential is chosen by role.
@@ -728,6 +729,55 @@ function registerTools(server: McpServer, client: BookStackClient, config: BookS
     );
 
     writeTool(
+      "upload_image",
+      {
+        description:
+          "Upload an image to the page-content gallery by URL: the server fetches it, so no image data passes through " +
+          "this call. Returns the image URL and ready-to-paste markdown. For a file on the caller's machine, use the " +
+          "`upload-image` CLI instead (pipe the file into the running server's container) — never base64 in an argument. " +
+          "BookStack accepts jpg, png, gif, webp and avif only; SVG must be rasterised to PNG first.",
+        inputSchema: {
+          uploaded_to: z.coerce.number().min(1).describe("ID of an existing page the image belongs to"),
+          url: z.string().url().describe("http(s) URL of the image; fetched by the server"),
+          name: z.string().max(180).optional()
+            .describe("Optional image name; defaults to the URL's file name. The extension is set from the actual format"),
+          type: z.enum(["gallery", "drawio"]).optional()
+            .describe("Optional: 'gallery' (default) for page content; 'drawio' only for a PNG with diagrams.net data embedded")
+        }
+      },
+      async (args) => {
+        const image = await client.uploadImageFromUrl({
+          uploaded_to: args.uploaded_to,
+          url: args.url,
+          name: args.name,
+          type: args.type
+        });
+        return {
+          content: [{ type: "text", text: JSON.stringify(image) }]
+        };
+      }
+    );
+
+    writeTool(
+      "delete_image",
+      {
+        description:
+          "Delete an image from the image gallery. The gallery record goes immediately, but BookStack may keep serving " +
+          "the underlying file at its direct URL, so this is not a way to make image data unreachable. " +
+          "Pages still embedding it will eventually show a broken image.",
+        inputSchema: {
+          id: z.coerce.number().min(1).describe("Image ID")
+        }
+      },
+      async (args) => {
+        await client.deleteImage(args.id);
+        return {
+          content: [{ type: "text", text: JSON.stringify({ deleted: true, id: args.id }) }]
+        };
+      }
+    );
+
+    writeTool(
       "create_page",
       {
         description: "Create a new page in BookStack",
@@ -1354,7 +1404,18 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// `bookstack-mcp upload-image ...` runs a one-shot CLI instead of the server.
+if (process.argv[2] === "upload-image") {
+  runUploadImageCli(process.argv.slice(3)).then(
+    (code) => process.exit(code),
+    (err) => {
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  );
+} else {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
